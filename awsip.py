@@ -34,8 +34,41 @@ def find_aws_ip(aws_ip_range_data, ip_to_find):
 
   return results
 
-sys.stdout.write(json.dumps(
-    find_aws_ip(download_aws_ip_set(), sys.argv[1]),
-    indent=2
-    )
-)
+def smallest_subnet(ips):
+    """
+    Calculates the smallest subnet containing all provided IP addresses.
+    """
+
+    if not ips:
+        raise ValueError("The IP list cannot be empty.")
+
+    # Convert IP strings into IP address objects
+    ip_objects = [ipaddress.ip_address(ip) for ip in ips]
+
+    
+    versions = {ip.version for ip in ip_objects}
+
+    if len(versions) > 1:
+        raise ValueError("Cannot mix IPv4 and IPv6 addresses.")
+
+    # Find the lowest and highest IP addresses
+    lo = min(ip_objects)
+    hi = max(ip_objects)
+
+    # Calculate the number of host bits
+    host_bits = (int(lo) ^ int(hi)).bit_length()
+
+    # Calculate the network prefix
+    prefix = lo.max_prefixlen - host_bits
+
+    # Return the smallest common subnet
+    return ipaddress.ip_network((lo, prefix), strict=False)
+
+
+if __name__ == "__main__":
+    sys.stdout.write(json.dumps(
+        find_aws_ip(download_aws_ip_set(), sys.argv[1]),
+        indent=2
+    ))
+
+
