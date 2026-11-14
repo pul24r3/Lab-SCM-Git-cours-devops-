@@ -3,18 +3,12 @@ import argparse
 import json
 from awsip import download_aws_ip_set, find_aws_ip
 
-# --- Sous-feature 1 : lire et valider les IPs ---------------------------------
-
+#Sous-feature 1 : lire et valider les IPs
 
 def parse_ips(values=None, file=None):
-    """Lit des IPs depuis une liste de chaînes et/ou un fichier (une IP par ligne).
 
-    Retourne un tuple (ips, invalides) :
-      - ips : liste triée, sans doublons, d'objets IPv4Address ou IPv6Address
-      - invalides : liste des chaînes rejetées
-    Lève ValueError si aucune IP valide, ou si IPv4 et IPv6 sont mélangées
-    (impossible de les mettre dans un même sous-réseau).
-    """
+    """Lit des IPs depuis une liste de chaînes et/ou un fichier (une IP par ligne)."""
+   
     raw = list(values or [])
     if file:
         with open(file, encoding="utf-8") as f:
@@ -29,6 +23,7 @@ def parse_ips(values=None, file=None):
         except ValueError:
             invalid.append(item)
 
+    """ValueError si impossible de les mettre dans un même sous-réseau """
     if not ips:
         raise ValueError("Aucune IP valide fournie")
     if len({ip.version for ip in ips}) > 1:
@@ -37,22 +32,20 @@ def parse_ips(values=None, file=None):
     return sorted(ips), invalid
 
 
-# --- Sous-feature 2 : calculer le plus petit sous-réseau commun --------
+#Sous-feature 2 : calculer le plus petit sous-réseau commun 
 
 def smallest_subnet(ips):
-    """
-    Calculates the smallest subnet containing all provided IP addresses.
-    """
+    """ Calcul le plus petit sous-réseau contenant toutes les adresses ip fournit """
 
     if not ips:
-        raise ValueError("The IP list cannot be empty.")
+        raise ValueError("La liste d'addresses IP ne peut pas être vide.")
 
     ip_objects = [ipaddress.ip_address(ip) for ip in ips]
 
     versions = {ip.version for ip in ip_objects}
 
     if len(versions) > 1:
-        raise ValueError("Cannot mix IPv4 and IPv6 addresses.")
+        raise ValueError("On ne peut pas mélanger IPv4 et IPv6.")
 
     lo = min(ip_objects)
     hi = max(ip_objects)
@@ -63,7 +56,7 @@ def smallest_subnet(ips):
     return ipaddress.ip_network((lo, prefix), strict=False)
 
 
-# --- Sous-feature 3 : croiser avec les plages AWS -----------------------------
+# Sous-feature 3 : croiser avec les plages AWS 
 
 
 def aws_coverage(network, aws_prefixes):
@@ -107,7 +100,7 @@ def aws_coverage(network, aws_prefixes):
     return {"status": status, "matches": matches}
 
 
-# --- Sous-feature 4 :  -----------------------------
+# Sous-feature 4 
 
 
 def run_check(ip):
@@ -117,7 +110,7 @@ def run_check(ip):
 
 def run_group(ips_raw=None, file=None):
     """
-    Analyze a group of IP addresses.
+    Analyse un groupe d'adresse IP
     """
     try:
         ips, invalid = parse_ips(ips_raw, file)
@@ -129,13 +122,13 @@ def run_group(ips_raw=None, file=None):
         coverage = aws_coverage(network, aws_prefixes)
 
         print("\n========== GROUP IP ANALYSIS ==========")
-        print(f"IPs analyzed       : {len(ips)}")
+        print(f"IPs analysées       : {len(ips)}")
 
         if invalid:
-            print(f"Invalid IPs ignored: {len(invalid)}")
+            print(f"Invalides IPs ignorées: {len(invalid)}")
 
-        print(f"Smallest subnet    : {network}")
-        print(f"Network capacity   : {network.num_addresses} addresses")
+        print(f"Plus petit réseau    : {network}")
+        print(f"Capacité du réseau   : {network.num_addresses} addresses")
         print(f"AWS coverage       : {coverage['status']}")
 
         for match in coverage["matches"]:
@@ -150,7 +143,7 @@ def run_group(ips_raw=None, file=None):
 
 def interactive_menu():
     """
-    Display an interactive menu to choose the analysis mode.
+    Afficher un menu interractif pour chhoisir le mode 
     """
 
     print("\n========== AWS IP ANALYZER ==========")
