@@ -2,7 +2,6 @@ import urllib.request
 import json
 import ipaddress
 import sys
-import features
 
 def download_aws_ip_set():
   """Downloads the AWS IP range JSON file and returns it as a dictionary."""
@@ -35,8 +34,4 @@ def find_aws_ip(aws_ip_range_data, ip_to_find):
 
   return results
 
-sys.stdout.write(json.dumps(
-    find_aws_ip(download_aws_ip_set(), sys.argv[1]),
-    indent=2
-    )
-)
+

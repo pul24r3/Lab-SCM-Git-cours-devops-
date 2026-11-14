@@ -1,4 +1,7 @@
 import ipaddress
+import argparse
+import json
+from awsip import download_aws_ip_set, find_aws_ip
 
 # --- Sous-feature 1 : lire et valider les IPs ---------------------------------
 
@@ -32,6 +35,32 @@ def parse_ips(values=None, file=None):
         raise ValueError("Impossible de mélanger IPv4 et IPv6 dans un même groupe")
 
     return sorted(ips), invalid
+
+
+# --- Sous-feature 2 : calculer le plus petit sous-réseau commun --------
+
+def smallest_subnet(ips):
+    """
+    Calculates the smallest subnet containing all provided IP addresses.
+    """
+
+    if not ips:
+        raise ValueError("The IP list cannot be empty.")
+
+    ip_objects = [ipaddress.ip_address(ip) for ip in ips]
+
+    versions = {ip.version for ip in ip_objects}
+
+    if len(versions) > 1:
+        raise ValueError("Cannot mix IPv4 and IPv6 addresses.")
+
+    lo = min(ip_objects)
+    hi = max(ip_objects)
+
+    host_bits = (int(lo) ^ int(hi)).bit_length()
+    prefix = lo.max_prefixlen - host_bits
+
+    return ipaddress.ip_network((lo, prefix), strict=False)
 
 
 # --- Sous-feature 3 : croiser avec les plages AWS -----------------------------
@@ -76,3 +105,121 @@ def aws_coverage(network, aws_prefixes):
     else:
         status = "aucune"
     return {"status": status, "matches": matches}
+
+
+# --- Sous-feature 4 :  -----------------------------
+
+
+def run_check(ip):
+    result = find_aws_ip(download_aws_ip_set(), ip)
+    print(json.dumps(result, indent=2))
+
+
+def run_group(ips_raw=None, file=None):
+    """
+    Analyze a group of IP addresses.
+    """
+    try:
+        ips, invalid = parse_ips(ips_raw, file)
+
+        network = smallest_subnet(ips)
+
+        aws_prefixes = download_aws_ip_set()
+
+        coverage = aws_coverage(network, aws_prefixes)
+
+        print("\n========== GROUP IP ANALYSIS ==========")
+        print(f"IPs analyzed       : {len(ips)}")
+
+        if invalid:
+            print(f"Invalid IPs ignored: {len(invalid)}")
+
+        print(f"Smallest subnet    : {network}")
+        print(f"Network capacity   : {network.num_addresses} addresses")
+        print(f"AWS coverage       : {coverage['status']}")
+
+        for match in coverage["matches"]:
+            print(
+                f" - {match['service']} / {match['region']} "
+                f"({match['prefix']}) : {match['type']}"
+            )
+
+    except (ValueError, OSError) as error:
+        print(f"Error: {error}")
+
+
+def interactive_menu():
+    """
+    Display an interactive menu to choose the analysis mode.
+    """
+
+    print("\n========== AWS IP ANALYZER ==========")
+    print("1. Check a single IP address")
+    print("2. Analyze a group of IP addresses")
+
+    choice = input("\nYour choice: ").strip()
+
+    if choice == "1":
+        ip = input("Enter an IP address: ").strip()
+        run_check(ip)
+
+    elif choice == "2":
+        values = input(
+            "Enter IP addresses separated by spaces: "
+        ).split()
+
+        run_group(values)
+
+    else:
+        print("Invalid choice.")
+
+
+def main():
+
+    parser = argparse.ArgumentParser(
+        description="AWS IP Address Analyzer"
+    )
+
+    subparsers = parser.add_subparsers(
+        dest="mode"
+    )
+
+    # Mode classique
+    check_parser = subparsers.add_parser(
+        "check",
+        help="Check a single IP address"
+    )
+
+    check_parser.add_argument("ip")
+
+    # Mode analyse de groupe
+    group_parser = subparsers.add_parser(
+        "group",
+        help="Analyze a group of IP addresses"
+    )
+
+    group_parser.add_argument(
+        "ips",
+        nargs="*",
+        help="IP addresses to analyze"
+    )
+
+    group_parser.add_argument(
+        "--file",
+        help="File containing IP addresses"
+    )
+
+    args = parser.parse_args()
+
+    if args.mode == "check":
+        run_check(args.ip)
+
+    elif args.mode == "group":
+        run_group(args.ips, args.file)
+
+    else:
+        interactive_menu()
+
+
+if __name__ == "__main__":
+    main()
